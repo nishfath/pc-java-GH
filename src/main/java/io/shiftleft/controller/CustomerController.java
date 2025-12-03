@@ -219,7 +219,7 @@ public Customer getCustomer(@PathVariable("customerId") Long customerId) {
    * @param request
    * @throws Exception
    */
-  @RequestMapping(value = "/saveSettings", method = RequestMethod.GET)
+@RequestMapping(value = "/saveSettings", method = RequestMethod.GET)
   public void saveSettings(HttpServletResponse httpResponse, WebRequest request) throws Exception {
     // "Settings" will be stored in a cookie
     // schema: base64(filename,value1,value2...), md5sum(base64(filename,value1,value2...))
@@ -231,8 +231,8 @@ public Customer getCustomer(@PathVariable("customerId") Long customerId) {
 
     String settingsCookie = request.getHeader("Cookie");
     String[] cookie = settingsCookie.split(",");
-	if(cookie.length<2) {
-	  httpResponse.getOutputStream().println("Malformed cookie");
+    if(cookie.length<2) {
+      httpResponse.getOutputStream().println("Malformed cookie");
       throw new Exception("cookie is incorrect");
     }
 
@@ -241,7 +241,7 @@ public Customer getCustomer(@PathVariable("customerId") Long customerId) {
     // Check md5sum
     String cookieMD5sum = cookie[1];
     String calcMD5Sum = DigestUtils.md5Hex(base64txt);
-	if(!cookieMD5sum.equals(calcMD5Sum))
+    if(!cookieMD5sum.equals(calcMD5Sum))
     {
       httpResponse.getOutputStream().println("Wrong md5");
       throw new Exception("Invalid MD5");
@@ -249,22 +249,51 @@ public Customer getCustomer(@PathVariable("customerId") Long customerId) {
 
     // Now we can store on filesystem
     String[] settings = new String(Base64.getDecoder().decode(base64txt)).split(",");
-	// storage will have ClassPathResource as basepath
+    
+    // Validate filename to prevent directory traversal
+    if (settings.length == 0 || settings[0] == null || settings[0].isEmpty()) {
+      httpResponse.getOutputStream().println("Invalid filename");
+      throw new Exception("Invalid filename");
+    }
+    
+    // Sanitize the filename - extract only the base filename without path
+    String safeFilename = FilenameUtils.getName(settings[0]);
+    
+    // Further validation to reject filenames with potentially dangerous characters
+    if (safeFilename.isEmpty() || safeFilename.contains("..") || safeFilename.contains("/") || safeFilename.contains("\\")) {
+      httpResponse.getOutputStream().println("Invalid filename characters");
+      throw new Exception("Invalid filename characters");
+    }
+    
+    // storage will have ClassPathResource as basepath
     ClassPathResource cpr = new ClassPathResource("./static/");
-	  File file = new File(cpr.getPath()+settings[0]);
+    String basePath = cpr.getPath();
+    
+    // Create a safe path that cannot go outside the base directory
+    Path resolvedPath = Paths.get(basePath).resolve(safeFilename).normalize();
+    
+    // Ensure the resolved path is still within the base directory
+    if (!resolvedPath.startsWith(Paths.get(basePath).normalize())) {
+      httpResponse.getOutputStream().println("Path traversal attempt detected");
+      throw new Exception("Path traversal attempt detected");
+    }
+    
+    File file = resolvedPath.toFile();
     if(!file.exists()) {
       file.getParentFile().mkdirs();
     }
 
-    FileOutputStream fos = new FileOutputStream(file, true);
-    // First entry is the filename -> remove it
-    String[] settingsArr = Arrays.copyOfRange(settings, 1, settings.length);
-    // on setting at a linez
-    fos.write(String.join("\n",settingsArr).getBytes());
-    fos.write(("\n"+cookie[cookie.length-1]).getBytes());
-    fos.close();
+    try (FileOutputStream fos = new FileOutputStream(file, true)) {
+      // First entry is the filename -> remove it
+      String[] settingsArr = Arrays.copyOfRange(settings, 1, settings.length);
+      // one setting at a line
+      fos.write(String.join("\n", settingsArr).getBytes());
+      fos.write(("\n" + cookie[cookie.length-1]).getBytes());
+    } // AutoCloseable resource will be closed automatically
+    
     httpResponse.getOutputStream().println("Settings Saved");
   }
+
 
   /**
    * Debug test for saving and reading a customer
