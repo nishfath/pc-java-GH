@@ -321,27 +321,35 @@ public String debug(@RequestParam String customerId,
 	 * @throws IOException
 	 */
 @RequestMapping(value = "/debug", method = RequestMethod.GET)
-public ResponseEntity<Map<String, Object>> debug(@RequestParam String customerId,
-                      @RequestParam int clientId,
-                      @RequestParam String firstName,
-                      @RequestParam String lastName,
-                      @RequestParam String dateOfBirth,
-                      @RequestParam String ssn,
-                      @RequestParam String socialSecurityNum,
-                      @RequestParam String tin,
-                      @RequestParam String phoneNumber,
-                      WebRequest request) throws IOException {
+public String debug(@RequestParam String customerId,
+                  @RequestParam int clientId,
+                  @RequestParam String firstName,
+                  @RequestParam String lastName,
+                  @RequestParam String dateOfBirth,
+                  @RequestParam String ssn,
+                  @RequestParam String socialSecurityNum,
+                  @RequestParam String tin,
+                  @RequestParam String phoneNumber,
+                  HttpServletResponse httpResponse,
+                  WebRequest request) throws IOException {
 
     // empty for now, because we debug
     Set<Account> accounts1 = new HashSet<Account>();
     //dateofbirth example -> "1982-01-10"
     Customer customer1 = new Customer(customerId, clientId, firstName, lastName, DateTime.parse(dateOfBirth).toDate(),
-                                    ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
-                                    "", "Debug city", "CA", "12345"),
-                                    accounts1);
+                                  ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
+                                  "", "Debug city", "CA", "12345"),
+                                  accounts1);
 
     customerRepository.save(customer1);
-    
+    httpResponse.setStatus(HttpStatus.CREATED.value());
+    httpResponse.setHeader("Location", String.format("%s/customers/%s",
+                       request.getContextPath(), customer1.getId()));
+
+    // Use OWASP Encoder to properly encode the output for HTML context
+    return Encode.forHtml(customer1.toString());
+}
+
     // Create a safe response map with properly sanitized customer data
     Map<String, Object> response = new HashMap<>();
     response.put("id", customer1.getId());
