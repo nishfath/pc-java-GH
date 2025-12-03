@@ -28,18 +28,26 @@ public class AdminController {
   private String fail = "redirect:/";
 
   // helper
-  private boolean isAdmin(String auth)
-  {
+// Secret key for JWT token signing - in a real application, this should be stored securely
+private final SecretKey jwtKey = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+  
+private boolean isAdmin(String authToken) {
     try {
-      ByteArrayInputStream bis = new ByteArrayInputStream(Base64.getDecoder().decode(auth));
-      ObjectInputStream objectInputStream = new ObjectInputStream(bis);
-      Object authToken = objectInputStream.readObject();
-      return ((AuthToken) authToken).isAdmin();
+        // Parse and validate the JWT token
+        Claims claims = Jwts.parserBuilder()
+            .setSigningKey(jwtKey)
+            .build()
+            .parseClaimsJws(authToken)
+            .getBody();
+        
+        // Check if the role is ADMIN
+        return "ADMIN".equals(claims.get("role", String.class));
     } catch (Exception ex) {
-      System.out.println(" cookie cannot be deserialized: "+ex.getMessage());
-      return false;
+        System.out.println("Invalid auth token: " + ex.getMessage());
+        return false;
     }
-  }
+}
+
 
   //
   @RequestMapping(value = "/admin/printSecrets", method = RequestMethod.POST)
@@ -81,47 +89,55 @@ public class AdminController {
    * @return redirect to company numbers
    * @throws Exception
    */
-  @RequestMapping(value = "/admin/login", method = RequestMethod.POST)
-  public String doPostLogin(@CookieValue(value = "auth", defaultValue = "notset") String auth, @RequestBody String password, HttpServletResponse response, HttpServletRequest request) throws Exception {
+@RequestMapping(value = "/admin/login", method = RequestMethod.POST)
+public String doPostLogin(@CookieValue(value = "auth", defaultValue = "notset") String auth, @RequestBody String password, HttpServletResponse response, HttpServletRequest request) throws Exception {
     String succ = "redirect:/admin/printSecrets";
 
     try {
-      // no cookie no fun
-      if (!auth.equals("notset")) {
-        if(isAdmin(auth)) {
-          request.getSession().setAttribute("auth",auth);
-          return succ;
+        // Check existing auth token if present
+        if (!auth.equals("notset")) {
+            if (isAdmin(auth)) {
+                request.getSession().setAttribute("auth", auth);
+                return succ;
+            }
         }
-      }
 
-      // split password=value
-      String[] pass = password.split("=");
-      if(pass.length!=2) {
+        // Parse and validate the password
+        String[] pass = password.split("=");
+        if (pass.length != 2) {
+            return fail;
+        }
+        
+        // Validate password (consider using password hashing in production)
+        if (pass[1] != null && pass[1].length() > 0 && pass[1].equals("shiftleftsecret")) {
+            // Create a JWT token with role ADMIN
+            String jwtToken = Jwts.builder()
+                .setSubject("admin")
+                .claim("role", "ADMIN")
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 3600000)) // 1 hour expiration
+                .signWith(jwtKey)
+                .compact();
+            
+            // Set secure cookie with the JWT token
+            Cookie cookie = new Cookie("auth", jwtToken);
+            cookie.setHttpOnly(true); // Prevent JavaScript access
+            cookie.setSecure(true);   // Send only over HTTPS
+            cookie.setPath("/");      // Available across the application
+            response.addCookie(cookie);
+            
+            // Store in session for redirection handling
+            request.getSession().setAttribute("auth", jwtToken);
+            
+            return succ;
+        }
         return fail;
-      }
-      // compare pass
-      if(pass[1] != null && pass[1].length()>0 && pass[1].equals("shiftleftsecret"))
-      {
-        AuthToken authToken = new AuthToken(AuthToken.ADMIN);
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ObjectOutputStream oos = new ObjectOutputStream(bos);
-        oos.writeObject(authToken);
-        String cookieValue = new String(Base64.getEncoder().encode(bos.toByteArray()));
-        response.addCookie(new Cookie("auth", cookieValue ));
-
-        // cookie is lost after redirection
-        request.getSession().setAttribute("auth",cookieValue);
-
-        return succ;
-      }
-      return fail;
+    } catch (Exception ex) {
+        ex.printStackTrace();
+        return fail;
     }
-    catch (Exception ex)
-    {
-      ex.printStackTrace();
-      // no succ == fail
-      return fail;
-    }
+}
+
   }
 
   /**
