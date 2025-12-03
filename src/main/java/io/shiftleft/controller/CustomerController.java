@@ -109,32 +109,35 @@ public class CustomerController {
 	 * @param customerId
 	 * @return retrieved customer
 	 */
-	@RequestMapping(value = "/customers/{customerId}", method = RequestMethod.GET)
-	public Customer getCustomer(@PathVariable("customerId") Long customerId) {
+@RequestMapping(value = "/customers/{customerId}", method = RequestMethod.GET)
+public Customer getCustomer(@PathVariable("customerId") Long customerId) {
 
-		/* validate customer Id parameter */
-      if (null == customerId) {
+    /* validate customer Id parameter */
+    if (null == customerId) {
         throw new InvalidCustomerRequestException();
-      }
-
-      Customer customer = customerRepository.findOne(customerId);
-		if (null == customer) {
-		  throw new CustomerNotFoundException();
-	  }
-
-	  Account account = new Account(4242l,1234, "savings", 1, 0);
-	  log.info("Account Data is {}", account);
-	  log.info("Customer Data is {}", customer);
-
-      try {
-        dispatchEventToSalesForce(String.format(" Customer %s Logged into SalesForce", customer));
-      } catch (Exception e) {
-        log.error("Failed to Dispatch Event to SalesForce . Details {} ", e.getLocalizedMessage());
-
-      }
-
-      return customer;
     }
+
+    Customer customer = customerRepository.findOne(customerId);
+    if (null == customer) {
+        throw new CustomerNotFoundException();
+    }
+
+    Account account = new Account(4242l, 1234, "savings", 1, 0);
+    
+    // Log only non-sensitive information
+    log.info("Retrieved account for customer ID: null", customerId);
+    
+    try {
+        // Pass only necessary information without exposing full customer details
+        dispatchEventToSalesForce(String.format("Customer ID: %d accessed their account", customerId));
+    } catch (Exception e) {
+        // Avoid logging exception details which might contain sensitive information
+        log.error("Failed to dispatch event to SalesForce. Error type: null", e.getClass().getName());
+    }
+
+    return customer;
+}
+
 
     /**
      * Handler for / loads the index.tpl
