@@ -156,12 +156,28 @@ public class Customer {
     this.accounts = accounts;
   }
 
-  @Override
-  public String toString() {
-    return "Customer [id=" + id + ", customerId=" + customerId + ", clientId=" + clientId + ", firstName=" + firstName
-        + ", lastName=" + lastName + ", dateOfBirth=" + dateOfBirth + ", ssn=" + ssn + ", socialInsurancenum="
-        + socialInsurancenum + ", tin=" + tin + ", phoneNumber=" + phoneNumber + ", address=" + address + ", accounts="
-        + accounts + "]";
-  }
+@Override
+public String toString() {
+    // Mask sensitive information before returning
+    return "Customer [id=" + id + ", customerId=" + customerId + ", clientId=" + clientId + 
+           ", firstName=" + firstName + ", lastName=" + lastName + 
+           ", dateOfBirth=" + dateOfBirth + 
+           // Mask sensitive data with asterisks
+           ", ssn=" + maskSensitiveData(ssn) + 
+           ", socialInsurancenum=" + maskSensitiveData(socialInsurancenum) + 
+           ", tin=" + maskSensitiveData(tin) + 
+           ", phoneNumber=" + phoneNumber + 
+           ", address=" + address + 
+           ", accounts=" + accounts + "]";
+}
+
+private String maskSensitiveData(String data) {
+    if (data == null || data.length() <= 4) {
+        return "****";
+    }
+    // Only show last 4 characters, mask the rest
+    return "****" + data.substring(Math.max(0, data.length() - 4));
+}
+
 
 }
