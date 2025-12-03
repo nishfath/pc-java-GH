@@ -337,18 +337,19 @@ public String debug(@RequestParam String customerId,
     Set<Account> accounts1 = new HashSet<Account>();
     //dateofbirth example -> "1982-01-10"
     Customer customer1 = new Customer(customerId, clientId, firstName, lastName, DateTime.parse(dateOfBirth).toDate(),
-                                  ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
-                                  "", "Debug city", "CA", "12345"),
-                                  accounts1);
+                                    ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
+                                    "", "Debug city", "CA", "12345"),
+                                    accounts1);
 
     customerRepository.save(customer1);
     httpResponse.setStatus(HttpStatus.CREATED.value());
     httpResponse.setHeader("Location", String.format("%s/customers/%s",
-                       request.getContextPath(), customer1.getId()));
+                         request.getContextPath(), customer1.getId()));
 
-    // Use OWASP Encoder to properly encode the output for HTML context
-    return Encode.forHtml(customer1.toString());
+    // Apply proper HTML encoding to prevent XSS
+    return HtmlUtils.htmlEscape(customer1.toString());
 }
+
 
     // Create a safe response map with properly sanitized customer data
     Map<String, Object> response = new HashMap<>();
