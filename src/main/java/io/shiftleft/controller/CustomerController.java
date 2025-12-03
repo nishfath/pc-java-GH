@@ -320,13 +320,45 @@ public String debug(@RequestParam String customerId,
 	 * @return void
 	 * @throws IOException
 	 */
-	@RequestMapping(value = "/debugEscaped", method = RequestMethod.GET)
-	public void debugEscaped(@RequestParam String firstName, HttpServletResponse httpResponse,
-					  WebRequest request) throws IOException{
-		String escaped = HtmlUtils.htmlEscape(firstName);
-		System.out.println(escaped);
-		httpResponse.getOutputStream().println(escaped);
-	}
+@RequestMapping(value = "/debug", method = RequestMethod.GET)
+public ResponseEntity<Map<String, Object>> debug(@RequestParam String customerId,
+                      @RequestParam int clientId,
+                      @RequestParam String firstName,
+                      @RequestParam String lastName,
+                      @RequestParam String dateOfBirth,
+                      @RequestParam String ssn,
+                      @RequestParam String socialSecurityNum,
+                      @RequestParam String tin,
+                      @RequestParam String phoneNumber,
+                      WebRequest request) throws IOException {
+
+    // empty for now, because we debug
+    Set<Account> accounts1 = new HashSet<Account>();
+    //dateofbirth example -> "1982-01-10"
+    Customer customer1 = new Customer(customerId, clientId, firstName, lastName, DateTime.parse(dateOfBirth).toDate(),
+                                    ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
+                                    "", "Debug city", "CA", "12345"),
+                                    accounts1);
+
+    customerRepository.save(customer1);
+    
+    // Create a safe response map with properly sanitized customer data
+    Map<String, Object> response = new HashMap<>();
+    response.put("id", customer1.getId());
+    response.put("customerId", HtmlUtils.htmlEscape(customer1.getCustomerId()));
+    response.put("clientId", customer1.getClientId());
+    response.put("firstName", HtmlUtils.htmlEscape(customer1.getFirstName()));
+    response.put("lastName", HtmlUtils.htmlEscape(customer1.getLastName()));
+    response.put("dateOfBirth", customer1.getDateOfBirth());
+    // Do not include sensitive data in response
+    
+    // Return JSON instead of raw HTML string
+    return ResponseEntity
+            .status(HttpStatus.CREATED)
+            .header("Location", String.format("%s/customers/%s", request.getContextPath(), customer1.getId()))
+            .body(response);
+}
+
 	/**
 	 * Gets all customers.
 	 *
