@@ -277,34 +277,38 @@ public Customer getCustomer(@PathVariable("customerId") Long customerId) {
       // First entry is the filename -> remove it
       String[] settingsArr = Arrays.copyOfRange(settings, 1, settings.length);
       // one setting at a line
-      fos.write(String.join("\n", settingsArr).getBytes());
-      fos.write(("\n" + cookie[cookie.length-1]).getBytes());
-    }
-    
-    httpResponse.getOutputStream().println("Settings Saved");
-  }
-  
-  /**
-   * Sanitizes a filename to prevent directory traversal attacks
-   * Removes path traversal sequences and restricts to alphanumeric characters,
-   * underscores, hyphens, and periods.
-   */
-  private String sanitizeFileName(String input) {
-    // Remove any path components
-    String fileName = new File(input).getName();
-    
-    // Further restrict to safe characters
-    return fileName.replaceAll("[^a-zA-Z0-9_\\-\\.]", "_");
-  }
+@RequestMapping(value = "/debug", method = RequestMethod.GET, produces = "application/json")
+public String debug(@RequestParam String customerId,
+                  @RequestParam int clientId,
+                  @RequestParam String firstName,
+                  @RequestParam String lastName,
+                  @RequestParam String dateOfBirth,
+                  @RequestParam String ssn,
+                  @RequestParam String socialSecurityNum,
+                  @RequestParam String tin,
+                  @RequestParam String phoneNumber,
+                  HttpServletResponse httpResponse,
+                 WebRequest request) throws IOException {
 
+    // empty for now, because we debug
+    Set<Account> accounts1 = new HashSet<Account>();
+    //dateofbirth example -> "1982-01-10"
+    Customer customer1 = new Customer(customerId, clientId, firstName, lastName, DateTime.parse(dateOfBirth).toDate(),
+                                  ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
+                                  "", "Debug city", "CA", "12345"),
+                                  accounts1);
 
-  /**
-   * Debug test for saving and reading a customer
-   *
-   * @param firstName String
-   * @param lastName String
-   * @param dateOfBirth String
-   * @param ssn String
+    customerRepository.save(customer1);
+    httpResponse.setStatus(HttpStatus.CREATED.value());
+    httpResponse.setHeader("Location", String.format("%s/customers/%s",
+                       request.getContextPath(), customer1.getId()));
+    httpResponse.setContentType("application/json");
+    
+    // Return JSON response instead of unsafe HTML string
+    ObjectMapper mapper = new ObjectMapper();
+    return mapper.writeValueAsString(customer1);
+}
+
    * @param tin String
    * @param phoneNumber String
    * @param httpResponse
