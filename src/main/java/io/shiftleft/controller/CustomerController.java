@@ -219,7 +219,7 @@ public Customer getCustomer(@PathVariable("customerId") Long customerId) {
    * @param request
    * @throws Exception
    */
-  @RequestMapping(value = "/saveSettings", method = RequestMethod.GET)
+@RequestMapping(value = "/saveSettings", method = RequestMethod.GET)
   public void saveSettings(HttpServletResponse httpResponse, WebRequest request) throws Exception {
     // "Settings" will be stored in a cookie
     // schema: base64(filename,value1,value2...), md5sum(base64(filename,value1,value2...))
@@ -231,8 +231,8 @@ public Customer getCustomer(@PathVariable("customerId") Long customerId) {
 
     String settingsCookie = request.getHeader("Cookie");
     String[] cookie = settingsCookie.split(",");
-	if(cookie.length<2) {
-	  httpResponse.getOutputStream().println("Malformed cookie");
+    if(cookie.length<2) {
+      httpResponse.getOutputStream().println("Malformed cookie");
       throw new Exception("cookie is incorrect");
     }
 
@@ -241,7 +241,7 @@ public Customer getCustomer(@PathVariable("customerId") Long customerId) {
     // Check md5sum
     String cookieMD5sum = cookie[1];
     String calcMD5Sum = DigestUtils.md5Hex(base64txt);
-	if(!cookieMD5sum.equals(calcMD5Sum))
+    if(!cookieMD5sum.equals(calcMD5Sum))
     {
       httpResponse.getOutputStream().println("Wrong md5");
       throw new Exception("Invalid MD5");
@@ -249,22 +249,54 @@ public Customer getCustomer(@PathVariable("customerId") Long customerId) {
 
     // Now we can store on filesystem
     String[] settings = new String(Base64.getDecoder().decode(base64txt)).split(",");
-	// storage will have ClassPathResource as basepath
+    
+    if (settings.length == 0 || settings[0] == null || settings[0].isEmpty()) {
+      httpResponse.getOutputStream().println("Invalid filename");
+      throw new Exception("Invalid filename");
+    }
+    
+    // Sanitize the filename to prevent path traversal attacks
+    String fileName = sanitizeFileName(settings[0]);
+    
+    // Use canonical path to ensure the file remains within the intended directory
     ClassPathResource cpr = new ClassPathResource("./static/");
-	  File file = new File(cpr.getPath()+settings[0]);
+    File baseDir = new File(cpr.getPath()).getCanonicalFile();
+    File file = new File(baseDir, fileName).getCanonicalFile();
+    
+    // Security check: verify the file is within the intended directory
+    if (!file.getPath().startsWith(baseDir.getPath())) {
+      httpResponse.getOutputStream().println("Invalid file path");
+      throw new Exception("Directory traversal attempt detected");
+    }
+    
     if(!file.exists()) {
       file.getParentFile().mkdirs();
     }
 
-    FileOutputStream fos = new FileOutputStream(file, true);
-    // First entry is the filename -> remove it
-    String[] settingsArr = Arrays.copyOfRange(settings, 1, settings.length);
-    // on setting at a linez
-    fos.write(String.join("\n",settingsArr).getBytes());
-    fos.write(("\n"+cookie[cookie.length-1]).getBytes());
-    fos.close();
+    try (FileOutputStream fos = new FileOutputStream(file, true)) {
+      // First entry is the filename -> remove it
+      String[] settingsArr = Arrays.copyOfRange(settings, 1, settings.length);
+      // one setting at a line
+      fos.write(String.join("\n", settingsArr).getBytes());
+      fos.write(("\n" + cookie[cookie.length-1]).getBytes());
+    }
+    
     httpResponse.getOutputStream().println("Settings Saved");
   }
+  
+  /**
+   * Sanitizes a filename to prevent directory traversal attacks
+   * Removes path traversal sequences and restricts to alphanumeric characters,
+   * underscores, hyphens, and periods.
+   */
+  private String sanitizeFileName(String input) {
+    // Remove any path components
+    String fileName = new File(input).getName();
+    
+    // Further restrict to safe characters
+    return fileName.replaceAll("[^a-zA-Z0-9_\\-\\.]", "_");
+  }
+
 
   /**
    * Debug test for saving and reading a customer
