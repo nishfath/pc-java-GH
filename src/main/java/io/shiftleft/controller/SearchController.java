@@ -17,16 +17,45 @@ import org.springframework.web.bind.annotation.RequestParam;
 @Controller
 public class SearchController {
 
-  @RequestMapping(value = "/search/user", method = RequestMethod.GET)
-  public String doGetSearch(@RequestParam String foo, HttpServletResponse response, HttpServletRequest request) {
-    java.lang.Object message = new Object();
-    try {
+@RequestMapping(value = "/search/user", method = RequestMethod.GET)
+public String doGetSearch(@RequestParam String foo, HttpServletResponse response, HttpServletRequest request) {
+  java.lang.Object message = new Object();
+  
+  // Define a whitelist of allowed search terms
+  Map<String, String> allowedSearchTerms = new HashMap<>();
+  allowedSearchTerms.put("username", "user.name");
+  allowedSearchTerms.put("email", "user.email");
+  allowedSearchTerms.put("id", "user.id");
+  
+  try {
+    // Check if the input is in our allowed list
+    if (allowedSearchTerms.containsKey(foo)) {
       ExpressionParser parser = new SpelExpressionParser();
-      Expression exp = parser.parseExpression(foo);
-      message = (Object) exp.getValue();
-    } catch (Exception ex) {
-      System.out.println(ex.getMessage());
+      StandardEvaluationContext context = new StandardEvaluationContext();
+      
+      // Create a dummy user object with safe data
+      Map<String, Object> user = new HashMap<>();
+      user.put("name", "John Doe");
+      user.put("email", "john@example.com");
+      user.put("id", "12345");
+      
+      // Add the user to the evaluation context
+      context.setVariable("user", user);
+      
+      // Use the pre-defined expression from our whitelist
+      Expression exp = parser.parseExpression(allowedSearchTerms.get(foo));
+      message = exp.getValue(context);
+    } else {
+      message = "Invalid search term. Allowed terms: " + String.join(", ", allowedSearchTerms.keySet());
     }
+  } catch (Exception ex) {
+    message = "Search error occurred";
+    // Log the error securely - don't expose exception details to users
+    System.out.println("Search error: " + ex.getMessage());
+  }
+  return message.toString();
+}
+
     return message.toString();
   }
 }
