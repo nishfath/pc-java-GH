@@ -17,16 +17,22 @@ import org.springframework.web.bind.annotation.RequestParam;
 @Controller
 public class SearchController {
 
-  @RequestMapping(value = "/search/user", method = RequestMethod.GET)
-  public String doGetSearch(@RequestParam String foo, HttpServletResponse response, HttpServletRequest request) {
-    java.lang.Object message = new Object();
-    try {
-      ExpressionParser parser = new SpelExpressionParser();
-      Expression exp = parser.parseExpression(foo);
-      message = (Object) exp.getValue();
-    } catch (Exception ex) {
-      System.out.println(ex.getMessage());
+@RequestMapping(value = "/search/user", method = RequestMethod.GET)
+public String doGetSearch(@RequestParam String foo, HttpServletResponse response, HttpServletRequest request) {
+    // Don't use SpEL to evaluate user input - it's a security risk
+    // Instead, treat the input as plain text and encode it for safe HTML output
+    String message;
+    
+    if (foo != null && !foo.isEmpty()) {
+        message = "Search query: " + foo;
+    } else {
+        message = "No search query provided";
     }
+    
+    // Use OWASP Encoder to prevent XSS attacks
+    return Encode.forHtml(message);
+}
+
     return message.toString();
   }
 }
