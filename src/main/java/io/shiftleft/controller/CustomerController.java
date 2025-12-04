@@ -109,32 +109,35 @@ public class CustomerController {
 	 * @param customerId
 	 * @return retrieved customer
 	 */
-	@RequestMapping(value = "/customers/{customerId}", method = RequestMethod.GET)
-	public Customer getCustomer(@PathVariable("customerId") Long customerId) {
+@RequestMapping(value = "/customers/{customerId}", method = RequestMethod.GET)
+public Customer getCustomer(@PathVariable("customerId") Long customerId) {
 
-		/* validate customer Id parameter */
-      if (null == customerId) {
+    /* validate customer Id parameter */
+    if (null == customerId) {
         throw new InvalidCustomerRequestException();
-      }
-
-      Customer customer = customerRepository.findOne(customerId);
-		if (null == customer) {
-		  throw new CustomerNotFoundException();
-	  }
-
-	  Account account = new Account(4242l,1234, "savings", 1, 0);
-	  log.info("Account Data is {}", account);
-	  log.info("Customer Data is {}", customer);
-
-      try {
-        dispatchEventToSalesForce(String.format(" Customer %s Logged into SalesForce", customer));
-      } catch (Exception e) {
-        log.error("Failed to Dispatch Event to SalesForce . Details {} ", e.getLocalizedMessage());
-
-      }
-
-      return customer;
     }
+
+    Customer customer = customerRepository.findOne(customerId);
+    if (null == customer) {
+        throw new CustomerNotFoundException();
+    }
+
+    Account account = new Account(4242l, 1234, "savings", 1, 0);
+    // Log only non-sensitive information
+    log.info("Account accessed for customer ID: null", customerId);
+    log.info("Account type: null", account.getType());
+
+    try {
+        // Avoid logging entire customer object
+        dispatchEventToSalesForce(String.format(" Customer ID %s Logged into SalesForce", customerId));
+    } catch (Exception e) {
+        // Don't log exception details that might contain sensitive data
+        log.error("Failed to Dispatch Event to SalesForce. Error type: null", e.getClass().getName());
+    }
+
+    return customer;
+}
+
 
     /**
      * Handler for / loads the index.tpl
@@ -216,7 +219,7 @@ public class CustomerController {
    * @param request
    * @throws Exception
    */
-  @RequestMapping(value = "/saveSettings", method = RequestMethod.GET)
+@RequestMapping(value = "/saveSettings", method = RequestMethod.GET)
   public void saveSettings(HttpServletResponse httpResponse, WebRequest request) throws Exception {
     // "Settings" will be stored in a cookie
     // schema: base64(filename,value1,value2...), md5sum(base64(filename,value1,value2...))
@@ -228,8 +231,8 @@ public class CustomerController {
 
     String settingsCookie = request.getHeader("Cookie");
     String[] cookie = settingsCookie.split(",");
-	if(cookie.length<2) {
-	  httpResponse.getOutputStream().println("Malformed cookie");
+    if(cookie.length<2) {
+      httpResponse.getOutputStream().println("Malformed cookie");
       throw new Exception("cookie is incorrect");
     }
 
@@ -238,7 +241,7 @@ public class CustomerController {
     // Check md5sum
     String cookieMD5sum = cookie[1];
     String calcMD5Sum = DigestUtils.md5Hex(base64txt);
-	if(!cookieMD5sum.equals(calcMD5Sum))
+    if(!cookieMD5sum.equals(calcMD5Sum))
     {
       httpResponse.getOutputStream().println("Wrong md5");
       throw new Exception("Invalid MD5");
@@ -246,65 +249,106 @@ public class CustomerController {
 
     // Now we can store on filesystem
     String[] settings = new String(Base64.getDecoder().decode(base64txt)).split(",");
-	// storage will have ClassPathResource as basepath
+    
+    if (settings.length == 0 || settings[0] == null || settings[0].isEmpty()) {
+      httpResponse.getOutputStream().println("Invalid filename");
+      throw new Exception("Invalid filename");
+    }
+    
+    // Sanitize the filename to prevent path traversal attacks
+    String fileName = sanitizeFileName(settings[0]);
+    
+    // Use canonical path to ensure the file remains within the intended directory
     ClassPathResource cpr = new ClassPathResource("./static/");
-	  File file = new File(cpr.getPath()+settings[0]);
+    File baseDir = new File(cpr.getPath()).getCanonicalFile();
+    File file = new File(baseDir, fileName).getCanonicalFile();
+    
+    // Security check: verify the file is within the intended directory
+    if (!file.getPath().startsWith(baseDir.getPath())) {
+      httpResponse.getOutputStream().println("Invalid file path");
+      throw new Exception("Directory traversal attempt detected");
+    }
+    
     if(!file.exists()) {
       file.getParentFile().mkdirs();
     }
 
-    FileOutputStream fos = new FileOutputStream(file, true);
-    // First entry is the filename -> remove it
-    String[] settingsArr = Arrays.copyOfRange(settings, 1, settings.length);
-    // on setting at a linez
-    fos.write(String.join("\n",settingsArr).getBytes());
-    fos.write(("\n"+cookie[cookie.length-1]).getBytes());
-    fos.close();
-    httpResponse.getOutputStream().println("Settings Saved");
-  }
-
-  /**
-   * Debug test for saving and reading a customer
-   *
-   * @param firstName String
-   * @param lastName String
-   * @param dateOfBirth String
-   * @param ssn String
-   * @param tin String
-   * @param phoneNumber String
-   * @param httpResponse
-   * @param request
-   * @return String
-   * @throws IOException
-   */
-  @RequestMapping(value = "/debug", method = RequestMethod.GET)
-  public String debug(@RequestParam String customerId,
-					  @RequestParam int clientId,
-					  @RequestParam String firstName,
-                      @RequestParam String lastName,
-                      @RequestParam String dateOfBirth,
-                      @RequestParam String ssn,
-					  @RequestParam String socialSecurityNum,
-                      @RequestParam String tin,
-                      @RequestParam String phoneNumber,
-                      HttpServletResponse httpResponse,
-                     WebRequest request) throws IOException{
+    try (FileOutputStream fos = new FileOutputStream(file, true)) {
+      // First entry is the filename -> remove it
+      String[] settingsArr = Arrays.copyOfRange(settings, 1, settings.length);
+      // one setting at a line
+@RequestMapping(value = "/debug", method = RequestMethod.GET, produces = "application/json")
+public String debug(@RequestParam String customerId,
+                  @RequestParam int clientId,
+                  @RequestParam String firstName,
+                  @RequestParam String lastName,
+                  @RequestParam String dateOfBirth,
+                  @RequestParam String ssn,
+                  @RequestParam String socialSecurityNum,
+                  @RequestParam String tin,
+                  @RequestParam String phoneNumber,
+                  HttpServletResponse httpResponse,
+                 WebRequest request) throws IOException {
 
     // empty for now, because we debug
     Set<Account> accounts1 = new HashSet<Account>();
     //dateofbirth example -> "1982-01-10"
     Customer customer1 = new Customer(customerId, clientId, firstName, lastName, DateTime.parse(dateOfBirth).toDate(),
-                                      ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
-                                      "", "Debug city", "CA", "12345"),
-                                      accounts1);
+                                  ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
+                                  "", "Debug city", "CA", "12345"),
+                                  accounts1);
 
     customerRepository.save(customer1);
     httpResponse.setStatus(HttpStatus.CREATED.value());
     httpResponse.setHeader("Location", String.format("%s/customers/%s",
-                           request.getContextPath(), customer1.getId()));
+                       request.getContextPath(), customer1.getId()));
+    httpResponse.setContentType("application/json");
+    
+    // Return JSON response instead of unsafe HTML string
+    ObjectMapper mapper = new ObjectMapper();
+    return mapper.writeValueAsString(customer1);
+}
 
-    return customer1.toString().toLowerCase().replace("script","");
-  }
+   * @param tin String
+   * @param phoneNumber String
+   * @param httpResponse
+   * @param request
+@RequestMapping(value = "/debug", method = RequestMethod.GET, produces = MediaType.TEXT_PLAIN_VALUE)
+public String debug(@RequestParam String customerId,
+                    @RequestParam int clientId,
+                    @RequestParam String firstName,
+                    @RequestParam String lastName,
+                    @RequestParam String dateOfBirth,
+                    @RequestParam String ssn,
+                    @RequestParam String socialSecurityNum,
+                    @RequestParam String tin,
+                    @RequestParam String phoneNumber,
+                    HttpServletResponse httpResponse,
+                    WebRequest request) throws IOException {
+
+    // empty for now, because we debug
+    Set<Account> accounts1 = new HashSet<Account>();
+    //dateofbirth example -> "1982-01-10"
+    Customer customer1 = new Customer(customerId, clientId, firstName, lastName, DateTime.parse(dateOfBirth).toDate(),
+                                    ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
+                                    "", "Debug city", "CA", "12345"),
+                                    accounts1);
+
+    customerRepository.save(customer1);
+    httpResponse.setStatus(HttpStatus.CREATED.value());
+    httpResponse.setHeader("Location", String.format("%s/customers/%s",
+                         request.getContextPath(), customer1.getId()));
+
+    // Properly encode customer data before returning to prevent XSS attacks
+    return Encode.forHtml(customer1.toString());
+}
+
+
+    // Apply proper HTML escaping to prevent XSS attacks
+    return HtmlUtils.htmlEscape(customer1.toString());
+}
+
+
 
 	/**
 	 * Debug test for saving and reading a customer
@@ -315,13 +359,55 @@ public class CustomerController {
 	 * @return void
 	 * @throws IOException
 	 */
-	@RequestMapping(value = "/debugEscaped", method = RequestMethod.GET)
-	public void debugEscaped(@RequestParam String firstName, HttpServletResponse httpResponse,
-					  WebRequest request) throws IOException{
-		String escaped = HtmlUtils.htmlEscape(firstName);
-		System.out.println(escaped);
-		httpResponse.getOutputStream().println(escaped);
-	}
+@RequestMapping(value = "/debug", method = RequestMethod.GET)
+public String debug(@RequestParam String customerId,
+                  @RequestParam int clientId,
+                  @RequestParam String firstName,
+                  @RequestParam String lastName,
+                  @RequestParam String dateOfBirth,
+                  @RequestParam String ssn,
+                  @RequestParam String socialSecurityNum,
+                  @RequestParam String tin,
+                  @RequestParam String phoneNumber,
+                  HttpServletResponse httpResponse,
+                  WebRequest request) throws IOException {
+
+    // empty for now, because we debug
+    Set<Account> accounts1 = new HashSet<Account>();
+    //dateofbirth example -> "1982-01-10"
+    Customer customer1 = new Customer(customerId, clientId, firstName, lastName, DateTime.parse(dateOfBirth).toDate(),
+                                  ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
+                                  "", "Debug city", "CA", "12345"),
+                                  accounts1);
+
+    customerRepository.save(customer1);
+    httpResponse.setStatus(HttpStatus.CREATED.value());
+    httpResponse.setHeader("Location", String.format("%s/customers/%s",
+                       request.getContextPath(), customer1.getId()));
+    
+    // Use HTML encoding for the customer data to prevent XSS
+    return safeCustomerToString(customer1);
+}
+
+// Create a safe version of toString() for the Customer object
+private String safeCustomerToString(Customer customer) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("Customer [id=").append(Encode.forHtml(String.valueOf(customer.getId())));
+    sb.append(", customerId=").append(Encode.forHtml(customer.getCustomerId()));
+    sb.append(", clientId=").append(customer.getClientId());
+    sb.append(", firstName=").append(Encode.forHtml(customer.getFirstName()));
+    sb.append(", lastName=").append(Encode.forHtml(customer.getLastName()));
+    sb.append(", dateOfBirth=").append(Encode.forHtml(String.valueOf(customer.getDateOfBirth())));
+    sb.append(", ssn=").append(Encode.forHtml(customer.getSsn()));
+    sb.append(", socialInsurancenum=").append(Encode.forHtml(customer.getSocialInsurancenum()));
+    sb.append(", tin=").append(Encode.forHtml(customer.getTin()));
+    sb.append(", phoneNumber=").append(Encode.forHtml(customer.getPhoneNumber()));
+    sb.append(", address=").append(Encode.forHtml(String.valueOf(customer.getAddress())));
+    sb.append(", accounts=").append(Encode.forHtml(String.valueOf(customer.getAccounts())));
+    sb.append("]");
+    return sb.toString();
+}
+
 	/**
 	 * Gets all customers.
 	 *
