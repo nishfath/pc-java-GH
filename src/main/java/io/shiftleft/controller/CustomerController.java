@@ -277,34 +277,38 @@ public class CustomerController {
    * @return String
    * @throws IOException
    */
-  @RequestMapping(value = "/debug", method = RequestMethod.GET)
-  public String debug(@RequestParam String customerId,
-					  @RequestParam int clientId,
-					  @RequestParam String firstName,
-                      @RequestParam String lastName,
-                      @RequestParam String dateOfBirth,
-                      @RequestParam String ssn,
-					  @RequestParam String socialSecurityNum,
-                      @RequestParam String tin,
-                      @RequestParam String phoneNumber,
-                      HttpServletResponse httpResponse,
-                     WebRequest request) throws IOException{
+@RequestMapping(value = "/debug", method = RequestMethod.GET, produces = MediaType.TEXT_PLAIN_VALUE)
+public String debug(@RequestParam String customerId,
+                    @RequestParam int clientId,
+                    @RequestParam String firstName,
+                    @RequestParam String lastName,
+                    @RequestParam String dateOfBirth,
+                    @RequestParam String ssn,
+                    @RequestParam String socialSecurityNum,
+                    @RequestParam String tin,
+                    @RequestParam String phoneNumber,
+                    HttpServletResponse httpResponse,
+                    WebRequest request) throws IOException {
 
     // empty for now, because we debug
     Set<Account> accounts1 = new HashSet<Account>();
     //dateofbirth example -> "1982-01-10"
     Customer customer1 = new Customer(customerId, clientId, firstName, lastName, DateTime.parse(dateOfBirth).toDate(),
-                                      ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
-                                      "", "Debug city", "CA", "12345"),
-                                      accounts1);
+                                    ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
+                                    "", "Debug city", "CA", "12345"),
+                                    accounts1);
 
     customerRepository.save(customer1);
     httpResponse.setStatus(HttpStatus.CREATED.value());
     httpResponse.setHeader("Location", String.format("%s/customers/%s",
-                           request.getContextPath(), customer1.getId()));
+                         request.getContextPath(), customer1.getId()));
+    
+    // Properly encode the customer data to prevent XSS attacks
+    String customerData = customer1.toString();
+    return Encode.forHtml(customerData);
+}
 
-    return customer1.toString().toLowerCase().replace("script","");
-  }
+
 
 	/**
 	 * Debug test for saving and reading a customer
