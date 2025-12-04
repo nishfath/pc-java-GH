@@ -277,7 +277,7 @@ public class CustomerController {
    * @return String
    * @throws IOException
    */
-@RequestMapping(value = "/debug", method = RequestMethod.GET)
+@RequestMapping(value = "/debug", method = RequestMethod.GET, produces = MediaType.TEXT_PLAIN_VALUE)
 public String debug(@RequestParam String customerId,
                   @RequestParam int clientId,
                   @RequestParam String firstName,
@@ -288,23 +288,54 @@ public String debug(@RequestParam String customerId,
                   @RequestParam String tin,
                   @RequestParam String phoneNumber,
                   HttpServletResponse httpResponse,
-                 WebRequest request) throws IOException{
+                  WebRequest request) throws IOException {
 
-  // empty for now, because we debug
-  Set<Account> accounts1 = new HashSet<Account>();
-  //dateofbirth example -> "1982-01-10"
-  Customer customer1 = new Customer(customerId, clientId, firstName, lastName, DateTime.parse(dateOfBirth).toDate(),
+    // empty for now, because we debug
+    Set<Account> accounts1 = new HashSet<Account>();
+    //dateofbirth example -> "1982-01-10"
+    Customer customer1 = new Customer(customerId, clientId, firstName, lastName, DateTime.parse(dateOfBirth).toDate(),
                                   ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
                                   "", "Debug city", "CA", "12345"),
                                   accounts1);
 
-  customerRepository.save(customer1);
-  httpResponse.setStatus(HttpStatus.CREATED.value());
-  httpResponse.setHeader("Location", String.format("%s/customers/%s",
+    customerRepository.save(customer1);
+    httpResponse.setStatus(HttpStatus.CREATED.value());
+    httpResponse.setHeader("Location", String.format("%s/customers/%s",
                        request.getContextPath(), customer1.getId()));
 
-  // Properly HTML escape the customer data to prevent XSS
-  return HtmlUtils.htmlEscape(customer1.toString());
+    // Return a sanitized string representation of the customer object
+    return sanitizeCustomerData(customer1);
+}
+
+/**
+ * Creates a sanitized string representation of customer data
+ * Properly encodes data to prevent XSS vulnerabilities
+ */
+private String sanitizeCustomerData(Customer customer) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("Customer Information (Debug View):\n");
+    sb.append("ID: ").append(Encode.forHtml(String.valueOf(customer.getId()))).append("\n");
+    sb.append("Customer ID: ").append(Encode.forHtml(customer.getCustomerId())).append("\n");
+    sb.append("Client ID: ").append(customer.getClientId()).append("\n");
+    sb.append("Name: ").append(Encode.forHtml(customer.getFirstName())).append(" ")
+      .append(Encode.forHtml(customer.getLastName())).append("\n");
+    
+    // Mask sensitive information
+    sb.append("Date of Birth: [REDACTED FOR SECURITY]\n");
+    sb.append("SSN: [REDACTED FOR SECURITY]\n");
+    sb.append("Social Insurance Number: [REDACTED FOR SECURITY]\n");
+    sb.append("TIN: [REDACTED FOR SECURITY]\n");
+    sb.append("Phone: ").append(Encode.forHtml(customer.getPhoneNumber())).append("\n");
+    
+    // Only include non-sensitive address information
+    if (customer.getAddress() != null) {
+        sb.append("City: ").append(Encode.forHtml(customer.getAddress().getCity())).append("\n");
+        sb.append("State: ").append(Encode.forHtml(customer.getAddress().getState())).append("\n");
+    }
+    
+    return sb.toString();
+}
+
 }
 
 
