@@ -277,11 +277,7 @@ public Customer getCustomer(@PathVariable("customerId") Long customerId) {
    * @param tin String
    * @param phoneNumber String
    * @param httpResponse
-   * @param request
-   * @return String
-   * @throws IOException
-   */
-@RequestMapping(value = "/debug", method = RequestMethod.GET)
+@RequestMapping(value = "/debug", method = RequestMethod.GET, produces = "application/json")
 public String debug(@RequestParam String customerId,
                   @RequestParam int clientId,
                   @RequestParam String firstName,
@@ -292,7 +288,7 @@ public String debug(@RequestParam String customerId,
                   @RequestParam String tin,
                   @RequestParam String phoneNumber,
                   HttpServletResponse httpResponse,
-                  WebRequest request) throws IOException{
+                  WebRequest request) throws IOException {
 
     // empty for now, because we debug
     Set<Account> accounts1 = new HashSet<Account>();
@@ -305,6 +301,24 @@ public String debug(@RequestParam String customerId,
     customerRepository.save(customer1);
     httpResponse.setStatus(HttpStatus.CREATED.value());
     httpResponse.setHeader("Location", String.format("%s/customers/%s",
+                       request.getContextPath(), customer1.getId()));
+    
+    // Convert customer to JSON instead of using toString
+    ObjectMapper mapper = new ObjectMapper();
+    Map<String, Object> customerMap = new HashMap<>();
+    customerMap.put("id", customer1.getId());
+    customerMap.put("customerId", HtmlUtils.htmlEscape(customer1.getCustomerId()));
+    customerMap.put("clientId", customer1.getClientId());
+    customerMap.put("firstName", HtmlUtils.htmlEscape(customer1.getFirstName()));
+    customerMap.put("lastName", HtmlUtils.htmlEscape(customer1.getLastName()));
+    customerMap.put("dateOfBirth", customer1.getDateOfBirth());
+    // Mask sensitive information
+    customerMap.put("ssn", "***-**-" + (customer1.getSsn().length() > 4 ? customer1.getSsn().substring(customer1.getSsn().length() - 4) : "****"));
+    customerMap.put("phoneNumber", HtmlUtils.htmlEscape(customer1.getPhoneNumber()));
+    
+    return mapper.writeValueAsString(customerMap);
+}
+
                        request.getContextPath(), customer1.getId()));
 
     // HTML escape the customer data to prevent XSS attacks
