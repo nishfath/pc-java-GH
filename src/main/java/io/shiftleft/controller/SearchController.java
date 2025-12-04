@@ -19,14 +19,39 @@ public class SearchController {
 
 @RequestMapping(value = "/search/user", method = RequestMethod.GET)
 public String doGetSearch(@RequestParam String foo, HttpServletResponse response, HttpServletRequest request) {
-  java.lang.Object message = new Object();
-  
-  // Define a whitelist of allowed search terms
-  Map<String, String> allowedSearchTerms = new HashMap<>();
-  allowedSearchTerms.put("username", "user.name");
-  allowedSearchTerms.put("email", "user.email");
-  allowedSearchTerms.put("id", "user.id");
-  
+    // Initialize logger for secure error handling
+    private static final Logger logger = LoggerFactory.getLogger(SearchController.class);
+    
+    // Set Content-Type header with charset
+    response.setContentType("text/plain; charset=UTF-8");
+    
+    // Set security headers to prevent XSS
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    response.setHeader("X-XSS-Protection", "1; mode=block");
+    response.setHeader("Content-Security-Policy", "default-src 'self'");
+    
+    // Validate input against a whitelist pattern
+    Pattern safeInputPattern = Pattern.compile("^[a-zA-Z0-9\\s.,?!]+$");
+    if (foo == null || !safeInputPattern.matcher(foo).matches()) {
+        // Return sanitized error message
+        return "Invalid input format";
+    }
+    
+    // Process the validated input safely (avoiding SpEL for user input)
+    String result;
+    try {
+        // Instead of using SpEL, handle the input directly
+        result = "Search results for: " + foo;
+    } catch (Exception ex) {
+        // Secure error logging - avoid exposing details to user
+        logger.error("Error processing search: null", ex.getMessage());
+        result = "An error occurred while processing your request";
+    }
+    
+    // HTML encode the result before returning to prevent XSS
+    return Encode.forHtml(result);
+}
+
   try {
     // Check if the input is in our allowed list
     if (allowedSearchTerms.containsKey(foo)) {
