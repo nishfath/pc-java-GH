@@ -359,13 +359,55 @@ public String debug(@RequestParam String customerId,
 	 * @return void
 	 * @throws IOException
 	 */
-	@RequestMapping(value = "/debugEscaped", method = RequestMethod.GET)
-	public void debugEscaped(@RequestParam String firstName, HttpServletResponse httpResponse,
-					  WebRequest request) throws IOException{
-		String escaped = HtmlUtils.htmlEscape(firstName);
-		System.out.println(escaped);
-		httpResponse.getOutputStream().println(escaped);
-	}
+@RequestMapping(value = "/debug", method = RequestMethod.GET)
+public String debug(@RequestParam String customerId,
+                  @RequestParam int clientId,
+                  @RequestParam String firstName,
+                  @RequestParam String lastName,
+                  @RequestParam String dateOfBirth,
+                  @RequestParam String ssn,
+                  @RequestParam String socialSecurityNum,
+                  @RequestParam String tin,
+                  @RequestParam String phoneNumber,
+                  HttpServletResponse httpResponse,
+                  WebRequest request) throws IOException {
+
+    // empty for now, because we debug
+    Set<Account> accounts1 = new HashSet<Account>();
+    //dateofbirth example -> "1982-01-10"
+    Customer customer1 = new Customer(customerId, clientId, firstName, lastName, DateTime.parse(dateOfBirth).toDate(),
+                                  ssn, socialSecurityNum, tin, phoneNumber, new Address("Debug str",
+                                  "", "Debug city", "CA", "12345"),
+                                  accounts1);
+
+    customerRepository.save(customer1);
+    httpResponse.setStatus(HttpStatus.CREATED.value());
+    httpResponse.setHeader("Location", String.format("%s/customers/%s",
+                       request.getContextPath(), customer1.getId()));
+    
+    // Use HTML encoding for the customer data to prevent XSS
+    return safeCustomerToString(customer1);
+}
+
+// Create a safe version of toString() for the Customer object
+private String safeCustomerToString(Customer customer) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("Customer [id=").append(Encode.forHtml(String.valueOf(customer.getId())));
+    sb.append(", customerId=").append(Encode.forHtml(customer.getCustomerId()));
+    sb.append(", clientId=").append(customer.getClientId());
+    sb.append(", firstName=").append(Encode.forHtml(customer.getFirstName()));
+    sb.append(", lastName=").append(Encode.forHtml(customer.getLastName()));
+    sb.append(", dateOfBirth=").append(Encode.forHtml(String.valueOf(customer.getDateOfBirth())));
+    sb.append(", ssn=").append(Encode.forHtml(customer.getSsn()));
+    sb.append(", socialInsurancenum=").append(Encode.forHtml(customer.getSocialInsurancenum()));
+    sb.append(", tin=").append(Encode.forHtml(customer.getTin()));
+    sb.append(", phoneNumber=").append(Encode.forHtml(customer.getPhoneNumber()));
+    sb.append(", address=").append(Encode.forHtml(String.valueOf(customer.getAddress())));
+    sb.append(", accounts=").append(Encode.forHtml(String.valueOf(customer.getAccounts())));
+    sb.append("]");
+    return sb.toString();
+}
+
 	/**
 	 * Gets all customers.
 	 *
