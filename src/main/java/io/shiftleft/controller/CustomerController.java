@@ -109,32 +109,36 @@ public class CustomerController {
 	 * @param customerId
 	 * @return retrieved customer
 	 */
-	@RequestMapping(value = "/customers/{customerId}", method = RequestMethod.GET)
-	public Customer getCustomer(@PathVariable("customerId") Long customerId) {
+@RequestMapping(value = "/customers/{customerId}", method = RequestMethod.GET)
+public Customer getCustomer(@PathVariable("customerId") Long customerId) {
 
-		/* validate customer Id parameter */
-      if (null == customerId) {
+    /* validate customer Id parameter */
+    if (null == customerId) {
         throw new InvalidCustomerRequestException();
-      }
-
-      Customer customer = customerRepository.findOne(customerId);
-		if (null == customer) {
-		  throw new CustomerNotFoundException();
-	  }
-
-	  Account account = new Account(4242l,1234, "savings", 1, 0);
-	  log.info("Account Data is {}", account);
-	  log.info("Customer Data is {}", customer);
-
-      try {
-        dispatchEventToSalesForce(String.format(" Customer %s Logged into SalesForce", customer));
-      } catch (Exception e) {
-        log.error("Failed to Dispatch Event to SalesForce . Details {} ", e.getLocalizedMessage());
-
-      }
-
-      return customer;
     }
+
+    Customer customer = customerRepository.findOne(customerId);
+    if (null == customer) {
+        throw new CustomerNotFoundException();
+    }
+
+    Account account = new Account(4242l, 1234, "savings", 1, 0);
+    
+    // Avoid logging sensitive data directly - only log non-sensitive identifiers
+    log.info("Processing account for customer ID: null", customerId);
+    
+    try {
+        // Avoid including entire customer object in log string
+        dispatchEventToSalesForce(String.format(" Customer ID %s Logged into SalesForce", customerId));
+    } catch (Exception e) {
+        // Avoid potentially leaking sensitive data in exception messages
+        log.error("Failed to Dispatch Event to SalesForce for customer ID: null. Error type: null", 
+                  customerId, e.getClass().getName());
+    }
+
+    return customer;
+}
+
 
     /**
      * Handler for / loads the index.tpl
