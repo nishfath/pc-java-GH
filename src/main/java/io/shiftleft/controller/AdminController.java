@@ -28,17 +28,18 @@ public class AdminController {
   private String fail = "redirect:/";
 
   // helper
-  private boolean isAdmin(String auth)
-  {
+private boolean isAdmin(String auth) {
     try {
-      ByteArrayInputStream bis = new ByteArrayInputStream(Base64.getDecoder().decode(auth));
-      ObjectInputStream objectInputStream = new ObjectInputStream(bis);
-      Object authToken = objectInputStream.readObject();
-      return ((AuthToken) authToken).isAdmin();
+        // Using JSON deserialization instead of raw Java deserialization
+        ObjectMapper mapper = new ObjectMapper();
+        AuthToken authToken = mapper.readValue(Base64.getDecoder().decode(auth), AuthToken.class);
+        return authToken != null && authToken.isAdmin();
     } catch (Exception ex) {
-      System.out.println(" cookie cannot be deserialized: "+ex.getMessage());
-      return false;
+        System.out.println("Cookie cannot be deserialized: " + ex.getMessage());
+        return false;
     }
+}
+
   }
 
   //
@@ -81,47 +82,68 @@ public class AdminController {
    * @return redirect to company numbers
    * @throws Exception
    */
-  @RequestMapping(value = "/admin/login", method = RequestMethod.POST)
-  public String doPostLogin(@CookieValue(value = "auth", defaultValue = "notset") String auth, @RequestBody String password, HttpServletResponse response, HttpServletRequest request) throws Exception {
+@RequestMapping(value = "/admin/login", method = RequestMethod.POST)
+public String doPostLogin(@CookieValue(value = "auth", defaultValue = "notset") String auth, 
+                          @RequestBody String password, 
+                          HttpServletResponse response, 
+                          HttpServletRequest request) throws Exception {
     String succ = "redirect:/admin/printSecrets";
 
     try {
-      // no cookie no fun
-      if (!auth.equals("notset")) {
-        if(isAdmin(auth)) {
-          request.getSession().setAttribute("auth",auth);
-          return succ;
+        // no cookie no fun
+        if (!auth.equals("notset")) {
+            if(isAdmin(auth)) {
+                request.getSession().setAttribute("auth", auth);
+                return succ;
+            }
         }
-      }
 
-      // split password=value
-      String[] pass = password.split("=");
-      if(pass.length!=2) {
+        // split password=value
+        String[] pass = password.split("=");
+        if(pass.length != 2) {
+            return fail;
+        }
+        
+        // compare pass - Use constant time comparison to prevent timing attacks
+        if(pass[1] != null && pass[1].length() > 0 && constantTimeEquals(pass[1], "shiftleftsecret")) {
+            AuthToken authToken = new AuthToken(AuthToken.ADMIN);
+            
+            // Use JSON serialization instead of Java serialization
+            ObjectMapper mapper = new ObjectMapper();
+            byte[] serialized = mapper.writeValueAsBytes(authToken);
+            String cookieValue = Base64.getEncoder().encodeToString(serialized);
+            
+            // Set secure cookie attributes
+            Cookie cookie = new Cookie("auth", cookieValue);
+            cookie.setHttpOnly(true);
+            cookie.setSecure(true); // Only send over HTTPS
+            cookie.setPath("/");
+            response.addCookie(cookie);
+
+            // Store in session
+            request.getSession().setAttribute("auth", cookieValue);
+            return succ;
+        }
         return fail;
-      }
-      // compare pass
-      if(pass[1] != null && pass[1].length()>0 && pass[1].equals("shiftleftsecret"))
-      {
-        AuthToken authToken = new AuthToken(AuthToken.ADMIN);
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ObjectOutputStream oos = new ObjectOutputStream(bos);
-        oos.writeObject(authToken);
-        String cookieValue = new String(Base64.getEncoder().encode(bos.toByteArray()));
-        response.addCookie(new Cookie("auth", cookieValue ));
-
-        // cookie is lost after redirection
-        request.getSession().setAttribute("auth",cookieValue);
-
-        return succ;
-      }
-      return fail;
+    } catch (Exception ex) {
+        ex.printStackTrace();
+        return fail;
     }
-    catch (Exception ex)
-    {
-      ex.printStackTrace();
-      // no succ == fail
-      return fail;
+}
+
+// Constant time comparison method to prevent timing attacks
+private boolean constantTimeEquals(String a, String b) {
+    if (a.length() != b.length()) {
+        return false;
     }
+    
+    int result = 0;
+    for (int i = 0; i < a.length(); i++) {
+        result |= a.charAt(i) ^ b.charAt(i);
+    }
+    return result == 0;
+}
+
   }
 
   /**
