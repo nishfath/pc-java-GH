@@ -288,7 +288,7 @@ public String debug(@RequestParam String customerId,
                   @RequestParam String tin,
                   @RequestParam String phoneNumber,
                   HttpServletResponse httpResponse,
-                  WebRequest request) throws IOException {
+                  WebRequest request) throws IOException{
 
     // empty for now, because we debug
     Set<Account> accounts1 = new HashSet<Account>();
@@ -302,10 +302,25 @@ public String debug(@RequestParam String customerId,
     httpResponse.setStatus(HttpStatus.CREATED.value());
     httpResponse.setHeader("Location", String.format("%s/customers/%s",
                        request.getContextPath(), customer1.getId()));
-
-    // Return a sanitized string representation of the customer object
-    return sanitizeCustomerData(customer1);
+    
+    // Return a safe representation of the customer
+    return createSafeCustomerRepresentation(customer1);
 }
+
+// Helper method to create a safe representation of customer data
+private String createSafeCustomerRepresentation(Customer customer) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("Customer created successfully\n");
+    sb.append("ID: ").append(Encode.forHtml(String.valueOf(customer.getId()))).append("\n");
+    sb.append("Customer ID: ").append(Encode.forHtml(customer.getCustomerId())).append("\n");
+    sb.append("Name: ").append(Encode.forHtml(customer.getFirstName())).append(" ")
+      .append(Encode.forHtml(customer.getLastName())).append("\n");
+    
+    // Avoid returning sensitive data like SSN, DOB, etc.
+    
+    return sb.toString();
+}
+
 
 /**
  * Creates a sanitized string representation of customer data
