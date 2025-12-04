@@ -291,7 +291,7 @@ public String debug(@RequestParam String customerId,
                   @RequestParam String tin,
                   @RequestParam String phoneNumber,
                   HttpServletResponse httpResponse,
-                 WebRequest request) throws IOException {
+                 WebRequest request) throws IOException{
 
     // empty for now, because we debug
     Set<Account> accounts1 = new HashSet<Account>();
@@ -306,9 +306,10 @@ public String debug(@RequestParam String customerId,
     httpResponse.setHeader("Location", String.format("%s/customers/%s",
                        request.getContextPath(), customer1.getId()));
 
-    // Apply HTML encoding to the customer data before returning
-    return Encode.forHtml(customer1.toString());
+    // Apply proper HTML escaping to prevent XSS attacks
+    return HtmlUtils.htmlEscape(customer1.toString());
 }
+
 
 
 	/**
